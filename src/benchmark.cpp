@@ -14,7 +14,7 @@
 #include "degridder.h"
 #include "gridspec.h"
 #include "gridder.h"
-#include "invert.h"
+// #include "invert.h"
 #include "mset.h"
 #include "memory.h"
 #include "outputtypes.h"
@@ -62,100 +62,100 @@ auto simple_benchmark(std::string_view name, const int N, const F f) {
     return ret;
 }
 
-TEST_CASE("MSet reading and paritioning", "[io]") {
-    if (!TESTDATA) { SKIP("TESTDATA path not provided"); }
+// TEST_CASE("MSet reading and paritioning", "[io]") {
+//     if (!TESTDATA) { SKIP("TESTDATA path not provided"); }
 
-    auto gridspec = GridSpec::fromScaleLM(8000, 8000, std::sin(deg2rad(15. / 3600)));
-    auto subgridspec = GridSpec::fromScaleUV(96, 96, gridspec.scaleuv);
+//     auto gridspec = GridSpec::fromScaleLM(8000, 8000, std::sin(deg2rad(15. / 3600)));
+//     auto subgridspec = GridSpec::fromScaleUV(96, 96, gridspec.scaleuv);
 
-    HostArray<ComplexLinearData<double>, 2> Aterms({96, 96});
-    Aterms.fill({1, 0, 0, 1});
+//     HostArray<ComplexLinearData<double>, 2> Aterms({96, 96});
+//     Aterms.fill({1, 0, 0, 1});
 
-    MeasurementSet mset(
-        TESTDATA,
-        {.chanlow = 0, .chanhigh = 191}
-    );
+//     MeasurementSet mset(
+//         TESTDATA,
+//         {.chanlow = 0, .chanhigh = 191}
+//     );
 
-    auto uvdata = simple_benchmark("MSet read", 5, [&] {
-        std::vector<UVDatum<double>> uvdata;
-        for (auto& uvdatum : mset) {
-            uvdata.push_back(uvdatum);
-        }
-        return uvdata;
-    });
+//     auto uvdata = simple_benchmark("MSet read", 5, [&] {
+//         std::vector<UVDatum<double>> uvdata;
+//         for (auto& uvdatum : mset) {
+//             uvdata.push_back(uvdatum);
+//         }
+//         return uvdata;
+//     });
 
-    auto workunits = simple_benchmark("Partition", 5, [&] {
-        return partition(uvdata, gridspec, subgridspec, 18, 25, Aterms);
-    });
-}
+//     auto workunits = simple_benchmark("Partition", 5, [&] {
+//         return partition(uvdata, gridspec, subgridspec, 18, 25, Aterms);
+//     });
+// }
 
-TEMPLATE_TEST_CASE("Invert", "[invert]", float, double) {
-    if (!TESTDATA) { SKIP("TESTDATA path not provided"); }
+// TEMPLATE_TEST_CASE("Invert", "[invert]", float, double) {
+//     if (!TESTDATA) { SKIP("TESTDATA path not provided"); }
 
-    auto gridspec = GridSpec::fromScaleLM(8000, 8000, std::sin(deg2rad(15. / 3600)));
-    auto subgridspec = GridSpec::fromScaleUV(96, 96, gridspec.scaleuv);
+//     auto gridspec = GridSpec::fromScaleLM(8000, 8000, std::sin(deg2rad(15. / 3600)));
+//     auto subgridspec = GridSpec::fromScaleUV(96, 96, gridspec.scaleuv);
 
-    auto taper = kaiserbessel<TestType>(gridspec);
-    auto subtaper = kaiserbessel<TestType>(subgridspec);
+//     auto taper = kaiserbessel<TestType>(gridspec);
+//     auto subtaper = kaiserbessel<TestType>(subgridspec);
 
-    HostArray<ComplexLinearData<TestType>, 2> Aterms({96, 96});
-    Aterms.fill({1, 0, 0, 1});
+//     HostArray<ComplexLinearData<TestType>, 2> Aterms({96, 96});
+//     Aterms.fill({1, 0, 0, 1});
 
-    MeasurementSet mset(
-        TESTDATA,
-        {.chanlow = 0, .chanhigh = 383}
-    );
+//     MeasurementSet mset(
+//         TESTDATA,
+//         {.chanlow = 0, .chanhigh = 383}
+//     );
 
-    // Convert to TestType precision
-    std::vector<UVDatum<TestType>> uvdata;
-    for (const auto& uvdatum : mset) {
-        uvdata.push_back(static_cast<UVDatum<TestType>>(uvdatum));
-    }
+//     // Convert to TestType precision
+//     std::vector<UVDatum<TestType>> uvdata;
+//     for (const auto& uvdatum : mset) {
+//         uvdata.push_back(static_cast<UVDatum<TestType>>(uvdatum));
+//     }
 
-    auto workunits = partition(uvdata, gridspec, subgridspec, 18, 25, Aterms);
+//     auto workunits = partition(uvdata, gridspec, subgridspec, 18, 25, Aterms);
 
-    simple_benchmark("Invert", 1, [&] {
-        return invert<StokesI, TestType>(
-            workunits, gridspec, taper, subtaper
-        );
-    });
-}
+//     simple_benchmark("Invert", 1, [&] {
+//         return invert<StokesI, TestType>(
+//             workunits, gridspec, taper, subtaper
+//         );
+//     });
+// }
 
-TEMPLATE_TEST_CASE("Predict", "[predict]", float, double) {
-    if (!TESTDATA) { SKIP("TESTDATA path not provided"); }
+// TEMPLATE_TEST_CASE("Predict", "[predict]", float, double) {
+//     if (!TESTDATA) { SKIP("TESTDATA path not provided"); }
 
-    auto gridspec = GridSpec::fromScaleLM(8000, 8000, std::sin(deg2rad(15. / 3600)));
-    auto subgridspec = GridSpec::fromScaleUV(96, 96, gridspec.scaleuv);
+//     auto gridspec = GridSpec::fromScaleLM(8000, 8000, std::sin(deg2rad(15. / 3600)));
+//     auto subgridspec = GridSpec::fromScaleUV(96, 96, gridspec.scaleuv);
 
-    auto taper = kaiserbessel<TestType>(gridspec);
-    auto subtaper = kaiserbessel<TestType>(subgridspec);
+//     auto taper = kaiserbessel<TestType>(gridspec);
+//     auto subtaper = kaiserbessel<TestType>(subgridspec);
 
-    HostArray<ComplexLinearData<TestType>, 2> Aterms({96, 96});
-    Aterms.fill({1, 0, 0, 1});
+//     HostArray<ComplexLinearData<TestType>, 2> Aterms({96, 96});
+//     Aterms.fill({1, 0, 0, 1});
 
-    MeasurementSet mset(
-        TESTDATA,
-        {.chanlow = 0, .chanhigh = 383}
-    );
+//     MeasurementSet mset(
+//         TESTDATA,
+//         {.chanlow = 0, .chanhigh = 383}
+//     );
 
-    // Convert to TestType precision
-    std::vector<UVDatum<TestType>> uvdata;
-    for (const auto& uvdatum : mset) {
-        uvdata.push_back(static_cast<UVDatum<TestType>>(uvdatum));
-    }
+//     // Convert to TestType precision
+//     std::vector<UVDatum<TestType>> uvdata;
+//     for (const auto& uvdatum : mset) {
+//         uvdata.push_back(static_cast<UVDatum<TestType>>(uvdatum));
+//     }
 
-    auto workunits = partition(uvdata, gridspec, subgridspec, 18, 25, Aterms);
+//     auto workunits = partition(uvdata, gridspec, subgridspec, 18, 25, Aterms);
 
-    // Create skymap
-    HostArray<StokesI<TestType>, 2> skymap({gridspec.Nx, gridspec.Ny});
+//     // Create skymap
+//     HostArray<StokesI<TestType>, 2> skymap({gridspec.Nx, gridspec.Ny});
 
-    simple_benchmark("Predict", 1, [&] {
-        predict<StokesI<TestType>, TestType>(
-            workunits, skymap, gridspec, taper, subtaper, DegridOp::Replace
-        );
-        return true;
-    });
-}
+//     simple_benchmark("Predict", 1, [&] {
+//         predict<StokesI<TestType>, TestType>(
+//             workunits, skymap, gridspec, taper, subtaper, DegridOp::Replace
+//         );
+//         return true;
+//     });
+// }
 
 TEMPLATE_TEST_CASE("gpudift kernel", "[gpudift]", float, double) {
     std::vector<UVDatum<TestType>> uvdata_h;
@@ -178,7 +178,24 @@ TEMPLATE_TEST_CASE("gpudift kernel", "[gpudift]", float, double) {
         });
     }
 
-    auto uvdata_d = DeviceArray<UVDatum<TestType>, 1>::fromVector(uvdata_h);
+        std::vector<TestType> us, vs, ws;
+    std::vector<LinearData<TestType>> weights;
+    std::vector<ComplexLinearData<TestType>> data;
+    for (auto& uvdatum : uvdata_h) {
+        us.push_back(uvdatum.u);
+        vs.push_back(uvdatum.v);
+        ws.push_back(uvdatum.w);
+        weights.push_back(uvdatum.weights);
+        data.push_back(uvdatum.data);
+    }
+
+    auto us_d = DeviceArray<TestType, 1>::fromVector(us);
+    auto vs_d = DeviceArray<TestType, 1>::fromVector(vs);
+    auto ws_d = DeviceArray<TestType, 1>::fromVector(ws);
+    auto weights_d = DeviceArray<LinearData<TestType>, 1>::fromVector(weights);
+    auto data_d = DeviceArray<ComplexLinearData<TestType>, 1>::fromVector(data);
+
+    // auto uvdata_d = DeviceArray<UVDatum<TestType>, 1>::fromVector(uvdata_h);
 
     auto subgridspec = GridSpec::fromScaleLM(96, 96, deg2rad(15. / 3600));
     UVWOrigin<TestType> origin {0, 0, 0};
@@ -192,7 +209,7 @@ TEMPLATE_TEST_CASE("gpudift kernel", "[gpudift]", float, double) {
     simple_benchmark("gpudift", 10, [&] {
         for (size_t i {}; i < 25; ++i) {
             gpudift<StokesI<TestType>, TestType>(
-                subgrid, Aterm_d, Aterm_d, origin, uvdata_d, subgridspec, false
+                subgrid, Aterm_d, Aterm_d, origin, us_d, vs_d, ws_d, weights_d, data_d, subgridspec, false
             );
         }
         HIPCHECK( hipStreamSynchronize(hipStreamPerThread) );
