@@ -27,30 +27,33 @@ void _gpudift(
     const DeviceSpan< UVDatum<S>, 1 > uvdata,
     const GridSpec subgridspec
 ) {
-    const int cachesize {256};
+    const int cachesize {384};
 
     // Workaround for avoiding initialization of shared variables
     __shared__ char smem[cachesize * sizeof(UVDatum<S>)];
     auto uvdatacache = reinterpret_cast<UVDatum<S>*>(smem);
 
-    for (
-        size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-        idx < blockDim.x * cld(subgridspec.size(), (size_t) blockDim.x);
-        idx += blockDim.x * gridDim.x
-    ) {
-        auto [l, m] = subgridspec.linearToSky<S>(idx);
-        S n {ndash(l, m)};
+    for (size_t i {}; i < uvdata.size(); i += cachesize) {
+        // Populate cache
+        for (
+            size_t j = threadIdx.x;
+            j < cachesize && i + j < uvdata.size();
+            j += blockDim.x
+        ) {
+            uvdatacache[j] = uvdata[i + j];
+        }
+        __syncthreads();
 
-        ComplexLinearData<S> cell {};
+        for (
+            size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+            idx < subgridspec.size();
+            idx += blockDim.x * gridDim.x
+        ) {
+            auto [l, m] = subgridspec.linearToSky<S>(idx);
+            S n {ndash(l, m)};
 
-        for (size_t i {}; i < uvdata.size(); i += cachesize) {
-            // Populate cache
-            if (threadIdx.x < cachesize && threadIdx.x + i < uvdata.size()) {
-                uvdatacache[threadIdx.x] = uvdata[threadIdx.x + i];
-            }
-            __syncthreads();
-
-            // Read through cache
+            // Read through cache and append to cell
+            ComplexLinearData<S> cell {};
             for (size_t j {}; j < min(cachesize, uvdata.size() - i); ++j) {
                 // Retrieve value from cache
                 auto uvdatum = uvdatacache[j];
@@ -71,12 +74,12 @@ void _gpudift(
                 uvdatum.data *= phase;
                 cell += uvdatum.data;
             }
-            __syncthreads();
+
+            // Append current cell value back to the subgrid
+            subgrid[idx] += T::fromBeam(cell, Aleft[idx], Aright[idx]);
         }
 
-        if (idx < subgridspec.size()) {
-            subgrid[idx] = T::fromBeam(cell, Aleft[idx], Aright[idx]);
-        }
+        __syncthreads();
     }
 }
 
