@@ -28,12 +28,12 @@ const char* TESTDATA = getenv("TESTDATA");
 template <typename F>
 auto simple_benchmark(std::string_view name, const int N, const F f) {
     // Perform one warm up and keep the result to return
-    auto ret = f();
+    decltype(f()) ret;
 
     std::vector<double> timings;
     for (int n {}; n < N; ++n) {
         auto start = std::chrono::steady_clock::now();
-        f();
+        ret = f();
         auto end = std::chrono::steady_clock::now();
         timings.push_back(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
@@ -178,7 +178,7 @@ TEMPLATE_TEST_CASE("gpudift kernel", "[gpudift]", float, double) {
         });
     }
 
-        std::vector<TestType> us, vs, ws;
+    std::vector<TestType> us, vs, ws;
     std::vector<LinearData<TestType>> weights;
     std::vector<ComplexLinearData<TestType>> data;
     for (auto& uvdatum : uvdata_h) {
@@ -189,13 +189,17 @@ TEMPLATE_TEST_CASE("gpudift kernel", "[gpudift]", float, double) {
         data.push_back(uvdatum.data);
     }
 
-    auto us_d = DeviceArray<TestType, 1>::fromVector(us);
-    auto vs_d = DeviceArray<TestType, 1>::fromVector(vs);
-    auto ws_d = DeviceArray<TestType, 1>::fromVector(ws);
-    auto weights_d = DeviceArray<LinearData<TestType>, 1>::fromVector(weights);
-    auto data_d = DeviceArray<ComplexLinearData<TestType>, 1>::fromVector(data);
+    std::vector<DeviceArray<TestType, 1>> us_ds, vs_ds, ws_ds;
+    std::vector<DeviceArray<LinearData<TestType>, 1>> weights_ds;
+    std::vector<DeviceArray<ComplexLinearData<TestType>, 1>> data_ds;
 
-    // auto uvdata_d = DeviceArray<UVDatum<TestType>, 1>::fromVector(uvdata_h);
+    for (size_t i {}; i < 25; ++i) {
+        us_ds.push_back(DeviceArray<TestType, 1>::fromVector(us));
+        vs_ds.push_back(DeviceArray<TestType, 1>::fromVector(vs));
+        ws_ds.push_back(DeviceArray<TestType, 1>::fromVector(ws));
+        weights_ds.push_back(DeviceArray<LinearData<TestType>, 1>::fromVector(weights));
+        data_ds.push_back(DeviceArray<ComplexLinearData<TestType>, 1>::fromVector(data));
+    }
 
     auto subgridspec = GridSpec::fromScaleLM(96, 96, deg2rad(15. / 3600));
     UVWOrigin<TestType> origin {0, 0, 0};
@@ -206,10 +210,10 @@ TEMPLATE_TEST_CASE("gpudift kernel", "[gpudift]", float, double) {
 
     DeviceArray<StokesI<TestType>, 2> subgrid({subgridspec.Nx, subgridspec.Ny});
 
-    simple_benchmark("gpudift", 10, [&] {
+    simple_benchmark("gpudift", 1, [&] {
         for (size_t i {}; i < 25; ++i) {
             gpudift<StokesI<TestType>, TestType>(
-                subgrid, Aterm_d, Aterm_d, origin, us_d, vs_d, ws_d, weights_d, data_d, subgridspec, false
+                subgrid, Aterm_d, Aterm_d, origin, us_ds[i], vs_ds[i], ws_ds[i], weights_ds[i], data_ds[i], subgridspec, false
             );
         }
         HIPCHECK( hipStreamSynchronize(hipStreamPerThread) );

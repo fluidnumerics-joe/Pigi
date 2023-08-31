@@ -31,6 +31,8 @@ void _gpudift(
     const DeviceSpan< ComplexLinearData<S>, 1 > data,
     const GridSpec subgridspec
 ) {
+    const size_t cachesize {256};
+
     for (
         size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
         idx < subgridspec.size();
@@ -39,24 +41,56 @@ void _gpudift(
         auto [l, m] = subgridspec.linearToSky<S>(idx);
         S n {ndash(l, m)};
 
-        ComplexLinearData<S> cell {};
-        for (size_t i {}; i < data.size(); ++i) {
-            auto phase = cispi(
-                2 * (
-                    (us[i] - origin.u0) * l +
-                    (vs[i] - origin.v0) * m +
-                    (ws[i] - origin.w0) * n
-                )
-            );
+        __shared__ S ucache[cachesize], vcache[cachesize], wcache[cachesize];
+        __shared__ S weightscache[4][cachesize];
 
-            auto datum = data[i];
-            if (makePSF) {
-                datum = {1, 0, 0, 1};
+        __shared__ char _datacache[4][cachesize * sizeof(std::complex<S>)];
+        auto datacache = reinterpret_cast<std::complex<S> (&) [4][cachesize]>(_datacache);
+
+        ComplexLinearData<S> cell;
+        for (size_t i {}; i < data.size(); i += cachesize) {
+            size_t N = min(cachesize, data.size() - i);
+
+            // Populate the cache
+            for (size_t j = threadIdx.x; j < N; j += blockDim.x) {
+                ucache[j] = us[i + j];
+                vcache[j] = vs[i + j];
+                wcache[j] = ws[i + j];
+
+                auto w = weights[i + j];
+                weightscache[0][j] = w.xx;
+                weightscache[1][j] = w.yx;
+                weightscache[2][j] = w.xy;
+                weightscache[3][j] = w.yy;
+
+                auto d = data[i + j];
+                datacache[0][j] = d.xx;
+                datacache[1][j] = d.yx;
+                datacache[2][j] = d.xy;
+                datacache[3][j] = d.yy;
             }
 
-            datum *= weights[i];
-            datum *= phase;
-            cell += datum;
+            for (size_t j {}; j < N; ++j) {
+                auto joffset = (j + threadIdx.x) % N;
+
+                auto phase = cispi(
+                    2 * (
+                        (ucache[joffset] - origin.u0) * l +
+                        (vcache[joffset] - origin.v0) * m +
+                        (wcache[joffset] - origin.w0) * n
+                    )
+                );
+
+                if (makePSF) {
+                    cell.xx += phase * weightscache[0][joffset];
+                    cell.yy += phase * weightscache[3][joffset];
+                } else {
+                    cell.xx = phase * weightscache[0][joffset] * datacache[0][joffset];
+                    cell.yx = phase * weightscache[1][joffset] * datacache[1][joffset];
+                    cell.xy = phase * weightscache[2][joffset] * datacache[2][joffset];
+                    cell.yy = phase * weightscache[3][joffset] * datacache[3][joffset];
+                }
+            }
         }
 
         subgrid[idx] = T::fromBeam(cell, Aleft[idx], Aright[idx]);
@@ -92,6 +126,8 @@ void gpudift(
         auto [nblocks, nthreads] = getKernelConfig(
             fn, subgridspec.size()
         );
+        nthreads = 256;
+        nblocks = subgridspec.size() / nthreads + 1;
         hipLaunchKernelGGL(
             fn, nblocks, nthreads, 0, hipStreamPerThread,
             subgrid, Aleft, Aright,
